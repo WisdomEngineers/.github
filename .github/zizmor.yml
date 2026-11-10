@@ -1,0 +1,6 @@
+# ACT-002: every action, GitHub's own included, is pinned to a full commit SHA.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin

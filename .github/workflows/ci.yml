@@ -1,0 +1,133 @@
+# CI gate for the public `.github` repository (REPO-006). A public
+# repository cannot call `gates.yml` from the private WisdomEngineers/github,
+# so its jobs are copied here unchanged: actionlint, zizmor and pinact
+# (ACT-010, ACT-012) and gitleaks (SC-006). osv-scanner (SC-008) is left out:
+# this repository has no lockfile. Keep the versions and SHA-256s in step with
+# gates.yml.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      VERSION: 1.7.12
+      SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive="actionlint_${VERSION}_linux_amd64.tar.gz"
+          curl -sSfLO "https://github.com/rhysd/actionlint/releases/download/v${VERSION}/${archive}"
+          echo "${SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "${archive}" actionlint
+      # actionlint 1.7.12 predates the job key `cache-mode` (GitHub changelog
+      # 2026-09-10) and reports it as unknown; only that message is ignored.
+      - run: '"${RUNNER_TEMP}/actionlint" -color -ignore "unexpected key \"cache-mode\" for \"job\" section"'
+
+  zizmor:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      VERSION: 1.32.0
+      SHA256: bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install zizmor
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive="zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          curl -sSfLO "https://github.com/zizmorcore/zizmor/releases/download/v${VERSION}/${archive}"
+          echo "${SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "${archive}" zizmor
+      # Offline and without SARIF: code scanning on a private repository
+      # needs the paid GitHub Code Security. The repository's own
+      # .github/zizmor.yml, if any, records accepted findings with reasons.
+      - run: '"${RUNNER_TEMP}/zizmor" --offline .github/workflows'
+
+  pinact:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      VERSION: 5.0.2
+      SHA256: 7f003d8f51e984c2264d2009d430e3e0e87ae404a0e2dc2a9a277b0f731bf5b7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinact
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive="pinact_linux_amd64.tar.gz"
+          curl -sSfLO "https://github.com/suzuki-shunsuke/pinact/releases/download/v${VERSION}/${archive}"
+          echo "${SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "${archive}" pinact
+      # Checks every `uses:` is pinned and that each version comment names the
+      # version its SHA really is. The caller's token cannot read this
+      # repository, so references to it are left to zizmor's hash-pin check.
+      - name: Check pins and version comments
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: '"${RUNNER_TEMP}/pinact" run --check --verify-comment --exclude "^WisdomEngineers/"'
+
+  gitleaks:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      VERSION: 8.30.1
+      SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # The binary, not gitleaks-action: the action needs a licence key for
+      # organisation-owned repositories.
+      - name: Install gitleaks
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -sSfLO "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${archive}"
+          echo "${SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "${archive}" gitleaks
+      # fetch-depth 0 fetches every branch and gitleaks scans them all, so a
+      # secret pushed to any branch fails this job until it is removed
+      # (Phase 07 planted-defect test). --verbose names rule, file and commit;
+      # --redact keeps the value out of the log.
+      - name: Scan the full history of every branch
+        run: '"${RUNNER_TEMP}/gitleaks" git --redact --verbose --no-banner --exit-code 1 .'
+
+  gate:
+    if: always()
+    needs: [actionlint, zizmor, pinact, gitleaks]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Fail unless every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            [ "${result}" = success ] || exit 1
+          done
