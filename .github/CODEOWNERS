@@ -1,0 +1,4 @@
+# REPO-017: CI and review configuration need an owner's review. The profile
+# is the organisation's public face, so it needs one too.
+/.github/ @we-piotr @Adi-Kitu
+/profile/ @we-piotr @Adi-Kitu
