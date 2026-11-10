@@ -24,7 +24,7 @@ Our code stays private, so there is little to browse here. We show the work in o
 
 ## What we do
 
-| | |
+| Stage | Services |
 |---|---|
 | **Learn** | [AI Readiness Discovery](https://wisdomengineers.ie/services/ai-readiness/) · [AI Training and AI Literacy](https://wisdomengineers.ie/services/ai-training/) |
 | **Build** | [Fix AI-Built Software](https://wisdomengineers.ie/services/fix-ai-built-software/) · [Prototype to Production](https://wisdomengineers.ie/services/prototype-to-production/) · [AI Automation and Agents](https://wisdomengineers.ie/services/ai-automation/) · [Product and MVP Development](https://wisdomengineers.ie/services/product-development/) · [Infrastructure](https://wisdomengineers.ie/services/infrastructure/) |
